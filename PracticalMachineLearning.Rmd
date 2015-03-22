@@ -1,0 +1,113 @@
+---
+title: "PracticalMachineLearning"
+author: "Cedric Choo"
+date: "Saturday, March 14, 2015"
+output: html_document
+---
+
+# Executive summary #
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+# Environment Setup #
+
+``` {r echo=TRUE, warning=FALSE, comment="Load Libraries"}
+library(caret)
+library(randomForest)
+library(rpart)
+```
+
+## Load the Data ##
+
+``` {r echo=TRUE, comment="Load Data"}
+URLTraining <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+
+CSVTraining <- read.csv(url(URLTraining), na.strings=c("NA","#DIV/0!",""))
+
+URLTesting <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+CSVTesting <- read.csv(url(URLTesting), na.strings=c("NA","#DIV/0!",""))
+```
+
+## Reproduceability ##
+
+In order to ensure that the result are reproduceable, we will need to set the seed value.
+
+``` {r echo=TRUE}
+set.seed(22315)
+```
+
+# Clean the Data #
+
+We clean up the dataset deleting columns with all missing values and then deleting irrelevant columns as well.
+
+``` {r echo=TRUE, comment="Clean Data"}
+CSVTraining <- CSVTraining[, colSums(is.na(CSVTraining)) == 0]
+CSVTesting <- CSVTesting[, colSums(is.na(CSVTesting)) == 0]
+
+CSVTraining <- CSVTraining[, -c(1:7)]
+CSVTesting <- CSVTesting[, -c(1:7)]
+```
+
+We create a random partition. A training and testing dataset with 75% and 25% respectively of random data from the original dataset to build and test the model.
+
+``` {r echo=TRUE, comment="Partition"}
+SplitTraining <- createDataPartition(CSVTraining$classe, p=0.75, list=FALSE)
+SubTraining <- CSVTraining[SplitTraining, ]
+SubTesting <- CSVTraining[-SplitTraining, ]
+```
+
+
+# Modeling #
+
+We try using 2 prediction models, Random Forest and Decision Tree, to determine which model provides a better accuracy.
+
+## Prediction model: Random Forest ##
+
+``` {r echo=TRUE}
+ModelRandomForest <- randomForest(classe ~. , data=SubTraining, method="class")
+
+PredictionRandomForest <- predict(ModelRandomForest, SubTesting, type = "class")
+
+confusionMatrix(PredictionRandomForest, SubTesting$classe)
+```
+
+## Prediction model: Decision Tree ##
+
+``` {r echo=TRUE}
+ModelDecisionTree <- rpart(classe ~ ., data=SubTraining, method="class")
+
+PredictionDecisionTree <- predict(ModelDecisionTree, SubTesting, type = "class")
+
+confusionMatrix(PredictionDecisionTree, SubTesting$classe)
+```
+
+Based on above result, Random Forest (0.995) provide a better accuracy than Decision Tree (0.739).
+
+The expected out-of-sample error is estimated at 0.005, or 0.5%.
+
+
+## Getting the Resultant Dataset ##
+
+We predict the classe variable using the Testing dataset.
+
+``` {r echo=TRUE, comment="Predict"}
+PredictionFinal <- predict(ModelRandomForest, CSVTesting, type="class")
+```
+
+
+# Writing out the files #
+
+Using the codes provided for the assignment, we produce the results in text files.
+
+``` {r echo=TRUE}
+pml_write_files = function(x){
+        n = length(x)
+        for(i in 1:n){
+                filename = paste0("problem_id_",i,".txt")
+                write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+        }
+}
+
+pml_write_files(PredictionFinal)
+```
